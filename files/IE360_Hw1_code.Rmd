@@ -1,0 +1,203 @@
+---
+title: "Homework 1"
+author: "Irem Ozturk "
+output: html_document
+---
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(EVDS)
+library(zoo)
+library(lubridate)
+library(plyr)
+set_evds_key("CSh2fxNEtF")
+
+categories<- show_categories()
+groups<- show_datagroups()
+```
+
+## 1) Total Consumer Loans in Turkey from 2012 to 2021
+
+Data is taken from the Central Bank of the Republic of Turkey. 
+
+```{r echo=FALSE}
+
+serie<- show_serie_lists(ccode="bie_tukkre")
+
+
+df1<- get_series(
+  series=c("TP.TUKKRE.K001"), start_date= "04-01-2013", end_date="09-04-2021"
+)
+credit.data<-df1$items
+credit.data$UNIXTIME <- NULL
+credit.data$Tarih<- as.Date(credit.data$Tarih, format="%d-%m-%Y")
+
+
+credit.data$TP_TUKKRE_K001 <- as.numeric(credit.data$TP_TUKKRE_K001)
+
+plot(credit.data$Tarih, credit.data$TP_TUKKRE_K001, type="l", xlab="Years(weekly)", ylab="Credits", main="Total Consumer Loans "  )
+
+
+
+```
+
+Figure.1. Total Consumer Loans over years
+
+There is an increasing trend over the year, generally. Only significant decrease in Total Consumer Loans occurred after the first half of 2018.In addition, the jump after the end of 2019 can be explained with the presence of the Covid-19 pandemic.
+
+### b)Google Trend for Keyword
+
+
+The word "_kredi_" is used in Google trends.
+
+
+```{r echo=FALSE, warning=FALSE}
+google.credit<- read.csv(file="/Users/oztur/Downloads/multiTimeline.csv", header=TRUE, sep=";")
+newDate<-as.Date(as.yearmon(google.credit$year.month))
+plot(newDate, google.credit$value, type="l", xlab="Years (monthly)", ylab="Number of Searches", main="Google Trend 'kredi'")
+
+
+```
+
+Figure.2. Google trend of the word over the years
+
+Like Total Loans, number of searches the word "kredi" is also increased grately due to pandemic and the goverment regulations to prevent spread of it.
+
+**Scatter Plot for both data:**
+
+
+```{r echo=FALSE, warning=FALSE}
+
+credit.data$my <- floor_date(credit.data$Tarih, "month")
+
+
+monthlyData <- ddply(credit.data, "my", summarise, TP_TUKKRE_K001 = sum(TP_TUKKRE_K001) )
+
+plot( google.credit$value, monthlyData$TP_TUKKRE_K001, pch=19 , xlab= "Google Searches", ylab= "Monthly Loans", main= " Loans-Google Trend")
+abline(lm(monthlyData$TP_TUKKRE_K001 ~ google.credit$value), col="blue")
+```
+
+Figure.3.Relationship between google trend and total loans
+
+According to scatter plot, it is hard to see the correlations among total loans and the keyword searches in Google.
+
+
+## 2) Total House Sales In Turkey From 2013 To 2021
+
+Data is taken from the Central Bank of the Republic of Turkey. 
+
+
+```{r  echo=FALSE, warning=FALSE}
+series<- show_serie_lists(ccode="bie_akonutsat1")
+
+df2<- get_series(
+  series=c("TP.AKONUTSAT1.TOPLAM"), start_date= "01-01-2013", end_date="01-01-2021"
+)
+sales.data <- df2$items
+sales.data$UNIXTIME <- NULL
+#sales.data$Tarih <- as.Date(sales.data$Tarih, format="%d-%m-%Y")
+salesDate <- as.Date(as.yearmon(sales.data$Tarih))
+
+sales.data$TP_AKONUTSAT1_TOPLAM <- as.numeric(sales.data$TP_AKONUTSAT1_TOPLAM)
+
+plot(salesDate, sales.data$TP_AKONUTSAT1_TOPLAM, type="l", xlab="Years (monthly)", ylab="Number of Sales", main="Total House Sales In Turkey")
+
+
+
+
+```
+
+Figure.4. Total house sales in turkey over the years
+
+Number of house sales over the years seems overall stable with a seasonal changes until the 2020. At the fall months more houses had sold, and with the beginning of winter sales dropped, generally. As expected, Covid-19 also affected the house sales in a negative way. However, significant increase occured after the first few months of 2020. The reason for that can be related to the housing interest rates, which is plotted at the next section.
+
+
+### b) Google Trend for Keyword
+
+The keyword "_satılık ev_" is used.
+
+
+```{r echo=FALSE, warning=FALSE}
+
+google.sales <- read.csv(file="/Users/oztur/Downloads/multiTimelineSales.csv", header=TRUE, sep=";")
+newDate2 <- as.Date(as.yearmon(google.sales$year.month))
+plot(newDate2, google.sales$value, type="l", xlab="Years (monthly)", ylab="Number of Searches", main="Google Trend 'satılık ev'")
+
+```
+
+Figure.5. Google trend for the word over the years
+
+Google Trend data for the keyword "_satılık ev_" also seems seasonal, the late summer and the fall months have higher value compared to other months.
+
+**Scatter Plot for both data**
+
+
+```{r echo=FALSE, warning=FALSE}
+plot(google.sales$value, sales.data$TP_AKONUTSAT1_TOPLAM, pch=19, xlab="Google Searches", ylab="House Sales", main=" House Sales- Google Trend")
+abline(lm(sales.data$TP_AKONUTSAT1_TOPLAM ~ google.sales$value), col="blue")
+```
+
+
+Figure.6. Relationship between google trend and the house sales
+
+According to scatter plot above, there is a positive correlation between two given data.
+
+
+## 3) Housing Interest Rate in Turkey From 2015 To 2021
+Data is taken from the Central Bank of the Republic of Turkey.
+
+```{r echo= FALSE, warning=FALSE}
+
+series<- show_serie_lists(ccode="bie_kt100h")
+
+df3<- get_series(
+  series=c("TP.KTF12"), start_date= "02-01-2015", end_date="09-04-2021"
+)
+interest.data <- df3$items
+interest.data$UNIXTIME <- NULL
+interest.data$Tarih <- as.Date( interest.data$Tarih, format= "%d-%m-%Y")
+
+interest.data$TP_KTF12 <- as.numeric(interest.data$TP_KTF12)
+
+plot(interest.data$Tarih, interest.data$TP_KTF12, type= "l", xlab=" Years", ylab= "Interest Rate", main= "Housing Interest Rate in Turkey")
+
+
+
+```
+
+Figure.7. Housing Interest Rate in Turkey 
+
+
+The lowest housing interest rate is appeared after the 2020, this caused by goverment regulations. When the interest rate dropped which lead increase in house sales (can be seen Figure.4).
+### b) Google Trend for Keyword
+
+The keyword _"faiz oranları"_ is used.
+
+
+```{r echo=FALSE, warning=FALSE}
+google.interest <- read.csv(file="/Users/oztur/Downloads/multiTimelineInterest.csv", header=TRUE, sep=";")
+newDate3 <- as.Date(as.yearmon(google.interest$year.month))
+
+plot(newDate3, google.interest$value, type="l", xlab="Years", ylab="Number of Searches", main="Google Trend 'faiz oranları'")
+
+
+```
+
+Figure 8. Google trend for keyword
+
+
+```{r echo=FALSE, warning=FALSE}
+interest.data$my <- floor_date(interest.data$Tarih, "month")
+
+monthlyData1 <- ddply(interest.data, "my", summarise, TP_KTF12= mean(TP_KTF12))
+
+
+plot(google.interest$value, monthlyData1$TP_KTF12, pch=19, xlab="Google Searches", ylab="Housing Interest Rate(monthly)", main="Housing Interest Rate-Google Trend")
+abline(lm(monthlyData1$TP_KTF12 ~ google.interest$value), col="blue")
+
+```
+
+Figure.9. Relationship between google trend and housing interest rate
+
+There is a weak positive relationship between two data.
+
+
