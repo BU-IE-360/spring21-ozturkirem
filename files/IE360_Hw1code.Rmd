@@ -168,6 +168,7 @@ Figure.7. Housing Interest Rate in Turkey
 
 
 The lowest housing interest rate is appeared after the 2020, this caused by goverment regulations. When the interest rate dropped which lead increase in house sales (can be seen Figure.4).
+
 ### b) Google Trend for Keyword
 
 The keyword _"faiz oranları"_ is used.
