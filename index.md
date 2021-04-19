@@ -7,4 +7,4 @@
 
 [Here](files/IE360_Hw1) is my Homework1.
 
-[Here](files/IE360_Hw1code.rmd) is my code.
+[Here](files/IE360_Hw1code.Rmd) is my code.
