@@ -1,0 +1,189 @@
+---
+title: "IE360hw2"
+output: html_document
+---
+İrem Öztürk
+
+
+## Introduction
+
+**Liquidated** firm is used for the firms that are in the process of ending. In this project I will try to examine **the number of newly liquidated firms in Turkey** data and come up with a forecast for the April, 2021. To do that I will use time series regression model. Without any examination we can think that some factors like commercial bank loan interest rate, real sector confidence index, unemployment rate, consumer confidence rate or expected production may affect it. In the following section we will look at the relation of them.
+
+##Data Manipulation and Visualization
+
+First of all, I plotted our data and after that looked at the correlation between them.
+
+```{r echo=FALSE, warning=FALSE}
+library(zoo)
+library(forecast)
+library(data.table)
+library(ggplot2)
+
+
+getwd()
+setwd("C:/Users/oztur/OneDrive/Masaüstü")
+
+dt <- read.csv("EVDS.csv", header=T)
+
+
+dataDate <- as.Date(as.yearmon(dt$Date))
+plot( dataDate, dt$Liquidated_Firms, type="l", xlab="years", ylab="liquidated firms", main="Number of Newly Liquidated Firms")
+
+
+timeSer <- ts(dt$Liquidated_Firms, frequency=12, start=c(2014,1))
+plot(timeSer, xlab="years")
+
+total_data=data.table(firms= as.numeric(timeSer), interest=dt$Interest, CCI=dt$CCI, real=dt$real_conf , unemployed=dt$unemployed, expect=dt$prod_expectation)
+
+
+plot(zoo(total_data), main="Graphs of Different Data Sets")
+
+cor(total_data)
+
+
+
+```
+
+As we can see there is no very significant correlation between independent variables and our data. However I will try to work with some of them like Unemployment, real sector confidence interval and expected production.
+
+## Regression Model
+
+To start our model I'll use trend and seasonality parameter. Although, there is not a significant trend in our model, there is an obvious seasonality. At months December and January there is an increase every year.
+```{r echo=FALSE, warning=FALSE}
+
+total_data[,trend:=1:.N]
+acf(timeSer, main="Autocorrelation")
+
+month=seq(1,12, by=1)
+total_data=cbind(total_data, month)
+fit <- lm(timeSer~trend+ as.factor(month), data=total_data)
+summary(fit)
+
+```
+Firstly, we should check the p value from the F test which is very close to zero, so we can say that our model is reasonable, but trend is not a powerful factor to model this series.To evaluate the model we need to check residuals and see if they are independently and identically distributed with zero mean and constant variance.
+
+```{r echo=FALSE}
+
+checkresiduals(fit, lag=12)
+```
+
+
+The distribution of the residuals is close to normal distribution but variance does not seem constant to eliminate that I can take the log of it.
+
+## Adding Regressors
+
+Even if I can not find a highly correlated data for number of newly liquidated firms, we can try to add them to our model as a regressor and see if it will be meaningful or not.
+
+I added unempolyment rate:
+
+```{r echo=F, warning=FALSE}
+log_data <- log(timeSer)
+total_data=data.table(firms= as.numeric(log_data), dollar=dt$USD, interest=dt$Interest, CCI=dt$CCI, real=dt$real_conf , unemployed=dt$unemployed, expect=dt$prod_expectation)
+total_data[,trend:=1:.N]
+
+month=seq(1,12, by=1)
+total_data=cbind(total_data, month)
+
+fit <- lm(log_data~ as.factor(month)+ unemployed, data=total_data)
+summary(fit)
+checkresiduals(fit)
+```
+
+From adjusted R- squared value, our model is not improved.
+
+I added real sector confidence index:
+
+
+```{r echo=FALSE, warning=FALSE}
+  fit2 <-lm(log_data~ as.factor(month) + unemployed + real, data=total_data)
+summary(fit2)
+checkresiduals(fit2)
+```
+
+F test p value still close to zero. According to adjusted R squared value our model improved. However, both factors I added are not very significant.
+
+I can try the expected production data and the consumer confidence index:
+
+```{r echo=FALSE, warning=FALSE}
+fit3 <-lm(log_data~ as.factor(month) + unemployed + real+ expect+ CCI, data=total_data)
+summary(fit3)
+checkresiduals(fit3)
+```
+ These factors did not improve our model and we can see that Breusch-Godfrey tests p value still a little close to 0, and there is autocorrelation of the residual. We can avoid it by adding lag variables. We should lag 1 and 2 because they are above the treshold value.
+ 
+```{r echo=FALSE, warning=FALSE}
+total_data[, lag1:= shift(log_data, n=1, type= "lag")]
+total_data[, lag2 := shift(log_data, n = 2, type = "lag") ]
+fit4 <- lm(log_data~as.factor(month)+  expect+ real+lag1+ lag2+unemployed+CCI, data=total_data)
+summary(fit4)
+checkresiduals(fit4)
+
+```
+Adding lag variables improved our model, and autocorrelation disappared. There is a high variance towards the end and we can model this by adding dummy variable.
+
+```{r echo=FALSE, warning=FALSE}
+total_data[trend==84, is_corona:=1]
+total_data[is.na(is_corona)==T, is_corona:=0]
+fit5 <- lm(log_data~as.factor(month)+ as.factor(is_corona)+ expect+ real+lag1+ lag2+unemployed+CCI, data=total_data)
+summary(fit4)
+checkresiduals(fit4)
+
+
+
+```
+
+
+
+
+## Final Model
+
+```{r echo=F, warning=FALSE}
+
+total_data[, fitted:=c(NA,NA,fit5$fitted.values)]
+total_data[, residual:=c(NA,NA,fit5$residuals)]
+cols <- c("fitted" = "red", "actual" = "blue")
+
+ggplot() + 
+  geom_line(data = total_data, aes(x = dataDate, y = fitted, color = "fitted"), size=0.75) +
+  geom_line(data = total_data, aes(x = dataDate, y = log_data, color = "actual"), size=0.75) +
+  labs(title = "Fitted vs Actual", x = "Date", y = "Liquidated Firms") +
+  theme_minimal() 
+
+
+total_data %>%
+  ggplot(aes(x=fitted, y=residual)) + 
+  geom_point()
+
+total_data %>%
+  ggplot(aes(x=fitted, y=log_data)) + 
+  geom_point() +
+  geom_abline(slope=1, intercept=0)
+
+  
+```
+
+As we can see fitted vs residual plot is not exactly what we wanted because seems like there is a slight relationship between them. The reason of this can be inconstant variance, even though I have tried to make it constant.
+
+##Prediction
+We don't have the regressor's value for the April so I took the values of March to predict the number of newly liquidated firms.
+
+```{r echo=FALSE, warning=F}
+total_data = rbind(total_data, data.table(Date=as.Date("2021-04-01")),fill=T)
+total_data[88,  CCI:=86.63 ]
+total_data[88, trend := 88]
+total_data[88, month := 4]
+total_data[88, unemployed := 14.10]
+total_data[88, lag1 := 1015.00]
+total_data[88, lag2 :=109.30]
+total_data[88, expect:=7.90]
+total_data[88, real:=11.80]
+total_data[88, is_corona:=0]
+predict(fit5, total_data[88])
+```
+Forecast for April is equal to 360.0647
+
+
+## Conclusion
+In this homework I tried to predict the number of newly liquidated firms in April by using trend, seasonality and the independent factor. Even though, I thought some of the factors would have significant correlation with our model, they haven't and so they did not improved our model exactly I wanted except the expected production data. In addition, I tried to make our residuals normally distributed with zero mean and constant variance.
+
+
