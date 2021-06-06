@@ -1,0 +1,213 @@
+---
+title: "Homework 3"
+output: html_document
+author: Irem Ozturk
+---
+
+
+For this project, I will use Turkey's Electricity consumption from 01,01,2016 to 20.06.2021. Data is obtained from @ https://seffaflik.epias.com.tr/transparency/. With this data I will try to find a forecast model with ARIMA models. 
+
+## Data Visualization
+
+
+```{r , warning=F, echo=FALSE, message=F}
+library(data.table)
+
+library(knitr)
+
+library(forecast)
+library(urca)
+library(stats)
+library(lubridate)
+library(ggplot2)
+library(dplyr)
+library(tseries)
+
+setwd("C:/Users/oztur/OneDrive/Masaüstü")
+mydata <- read.table("Elektrik tüketimi.csv", header=T, sep=",")
+
+newdate <- with(mydata, dmy(mydata$Tarih)+hm(mydata$Saat))
+newdata <- data.table(newdate, mydata$tuketim)
+
+newdata$V2 <- as.numeric(newdata$V2)
+plot(newdata$newdate, newdata$V2, type="l", ylab="Electricity consumption", xlab="Years", main="Electricity consumption of Turkey (2016-2021)")
+```
+
+
+## Seasonality
+
+
+```{r , warning=F, echo=FALSE}
+acf(newdata$V2)
+datats1 <- ts(newdata$V2, frequency = 24)
+```
+
+
+Apart from the autocorrelation at lag 1, there is a significant autocorrelation at lag 24, so we can say that there is daily seasonality. When turning our data into time series I'll use frequency as 24.
+
+```{r, warning=FALSE, echo=F}
+acf(datats1, lag.max = 24*7)
+pacf(datats1, lag.max = 24*7)
+
+```
+
+There is a significant autocorrelation at lag 7 compared to others. This means that weekly seasonality may occur.
+Also we will look at the monthly seasonality.
+
+
+```{r, echo=FALSE}
+acf(datats1, lag.max=24*30)
+pacf(datats1, lag.max = 24*30)
+
+```
+
+
+At lag 30 there is no significant autocorrelation compared to weekly seasonality. so there is no monthly seasonality.
+
+
+## Decomposition
+
+To build a time series model, we need to work with stationary series. To get stationary series we should eliminate the effect of trend and seasonality. Decomposition is a way to do this. Above, I tried different seasonalities.
+
+### 1. Daily
+
+
+```{r, echo=FALSE}
+data_dec_add <- decompose(datats1)
+plot(data_dec_add)
+
+```
+
+
+### 2. Weekly
+
+
+```{r, echo=FALSE}
+
+datats2 <- ts(newdata$V2, freq=24*7)
+data_dec_week <- decompose(datats2, type="add")
+plot(data_dec_week)
+
+data_dec_week$random%>%ur.kpss()%>%summary()
+```
+Test value is smaller than any critical value we can not reject the null hypothesis that is time series is stationary.
+
+
+### 3. Monthly
+
+```{r , echo=FALSE}
+datats3 <- ts(newdata$V2, freq=24*30, start=c(2016,1,1))
+data_dec_month <-decompose(datats3)
+plot(data_dec_month)
+
+data_dec_month$random%>%ur.kpss()%>%summary()
+```
+
+Test statistic is grater than weekly seasonality.
+
+### 4. Monthly and Weekly
+
+
+```{r, echo=FALSE}
+datats4 <- ts(newdata$V2, freq=24*7*4, start=c(2016,1,1))
+data_dec_weekmonth <- decompose(datats4)
+plot(data_dec_weekmonth)
+
+data_dec_weekmonth$random%>%ur.kpss()%>%summary()
+
+```
+
+Again, test value is greater than weekly seasonality. So, I will move into with weekly seasonality.
+
+## AR Models
+
+```{r, echo=FALSE}
+acf(data_dec_week$random, na.action=na.pass)
+pacf(data_dec_week$random, na.action=na.pass)
+
+```
+
+We have a sinusodial acf plot and there is spike at lag 2. This pattern occurs at Autoregressive Models. I will start trying values of lag p with 2.
+
+### AR Model 1 (2,0,0)
+
+```{r, echo=FALSE}
+random <- data_dec_week$random
+model1 <- arima(random, order=c(2,0,0))
+model1
+```
+### AR Model 2 (3,0,0)
+
+```{r, echo=FALSE}
+model2 <- arima(random, order=c(3,0,0))
+model2
+```
+
+AIC value improved slightly. For the sake of simplicity I'll continue with (2,0,0) model.
+
+## MA Models
+
+### MA Model 1 (0,0,1)
+
+```{r, echo=FALSE}
+model3 <- arima(random, order=c(0,0,1))
+
+model3
+```
+
+We don't have better AIC value than AR models.
+
+### MA Model 2 (0,0,2)
+
+```{r, echo=FALSE}
+model4 <- arima(random, order=c(0,0,2))
+
+model4
+```
+
+AIC value is improved.
+
+### MA Model 3 (0,0,3)
+
+```{r, echo=FALSE}
+model5 <- arima(random, order=c(0,0,4))
+
+model5
+```
+
+Still we dont have a better model. 
+
+## ARMA Models
+
+### ARMA Model (2,0,3)
+```{r, echo=FALSE}
+model24 <- arima(random, order=c(2,0,3))
+
+model24
+```
+
+Which is a better than (2,0,0) AR model. However, AIC values are not significantly different.
+
+
+## Fitted and Actual Values for Random Term
+
+```{r, echo=FALSE, warning=FALSE}
+model_fitted <- random - residuals(model24)
+model_fitted_transformed <- model_fitted+data_dec_week$trend+data_dec_week$seasonal
+
+plot(random, xlab = "Weeks", ylab = "consumption-random",main="Electricity Consumption-Random Term")
+points(model_fitted, type = "l", col = 2, lty = 2)
+
+```
+
+Averall fitted random values are close to actual random values.
+
+## Fitted and actual Values for Electricity Consumption
+
+```{r, echo=FALSE, warning=F}
+
+plot(datats2, xlab = "weeks", ylab = "Electricity Consumption",main="Electricity consumption Between 6th and 20th of May 2021 ", type="l", col="blue", xlim=c(280,282))
+points(model_fitted_transformed, type = "l", col = 2, lty = 2)
+```
+
+Like random values, trend an seasonality added values seem close.
